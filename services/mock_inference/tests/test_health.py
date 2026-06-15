@@ -1,0 +1,16 @@
+from fastapi.testclient import TestClient
+
+from services.mock_inference.app.main import app
+
+
+client = TestClient(app)
+
+
+def test_health_check_returns_ok() -> None:
+    response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "service": "mock-inference",
+    }
