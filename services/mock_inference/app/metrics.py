@@ -68,3 +68,44 @@ TIME_PER_OUTPUT_TOKEN = Histogram(
     labelnames=[MODEL_LABEL],
     buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5),
 )
+
+from services.mock_inference.app.simulation import SimulationResult
+
+
+def record_successful_request(
+    *,
+    model_name: str,
+    result: SimulationResult,
+) -> None:
+    REQUEST_SUCCESS.labels(
+        model_name=model_name,
+        finished_reason="stop",
+    ).inc()
+
+    PROMPT_TOKENS.labels(
+        model_name=model_name,
+    ).inc(result.prompt_tokens)
+
+    GENERATION_TOKENS.labels(
+        model_name=model_name,
+    ).inc(result.generation_tokens)
+
+    TIME_TO_FIRST_TOKEN.labels(
+        model_name=model_name,
+    ).observe(result.time_to_first_token_seconds)
+
+    E2E_REQUEST_LATENCY.labels(
+        model_name=model_name,
+    ).observe(result.e2e_latency_seconds)
+
+    REQUEST_PROMPT_TOKENS.labels(
+        model_name=model_name,
+    ).observe(result.prompt_tokens)
+
+    REQUEST_GENERATION_TOKENS.labels(
+        model_name=model_name,
+    ).observe(result.generation_tokens)
+
+    TIME_PER_OUTPUT_TOKEN.labels(
+        model_name=model_name,
+    ).observe(result.time_per_output_token_seconds)
