@@ -9,6 +9,9 @@ from services.mock_inference.app.models import (
     ChatMessage,
 )
 
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from starlette.responses import Response
+
 app = FastAPI(
     title="Mock Inference Service",
     version="0.1.0",
@@ -21,6 +24,14 @@ def health_check() -> dict[str, str]:
         "status": "ok",
         "service": "mock-inference",
     }
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 @app.post(
