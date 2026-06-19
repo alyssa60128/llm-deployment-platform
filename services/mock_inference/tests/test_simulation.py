@@ -31,6 +31,10 @@ def test_simulate_inference_returns_deterministic_result() -> None:
     assert result.time_to_first_token_seconds > 0
     assert result.time_per_output_token_seconds > 0
     assert result.e2e_latency_seconds > 0
+    assert result.finish_reason in {
+        "stop",
+        "length",
+    }
 
 
 def test_e2e_latency_is_sum_of_ttft_and_generation_time() -> None:

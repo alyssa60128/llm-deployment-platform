@@ -1,6 +1,7 @@
 from uuid import uuid4
-
-from fastapi import FastAPI
+import logging
+from time import perf_counter
+from fastapi import FastAPI, Request
 
 from services.mock_inference.app.models import (
     ChatCompletionChoice,
@@ -17,12 +18,74 @@ from services.mock_inference.app.metrics import (
     record_successful_request,
 )
 from services.mock_inference.app.simulation import simulate_inference
+from services.mock_inference.app.logging_config import configure_logging
+
+configure_logging()
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Mock Inference Service",
     version="0.1.0",
 )
 
+@app.middleware("http")
+async def add_request_context(
+    request: Request,
+    call_next,
+):
+    request_id = request.headers.get(
+        "X-Request-ID",
+        f"req-{uuid4().hex}",
+    )
+
+    request.state.request_id = request_id
+    started_at = perf_counter()
+
+    logger.info(
+        "HTTP request started",
+        extra={
+            "event": "request.started",
+            "request_id": request_id,
+            "http_method": request.method,
+            "http_path": request.url.path,
+        },
+    )
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration = perf_counter() - started_at
+
+        logger.exception(
+            "HTTP request failed",
+            extra={
+                "event": "request.failed",
+                "request_id": request_id,
+                "http_method": request.method,
+                "http_path": request.url.path,
+                "duration_seconds": round(duration, 6),
+            },
+        )
+        raise
+
+    duration = perf_counter() - started_at
+
+    response.headers["X-Request-ID"] = request_id
+
+    logger.info(
+        "HTTP request completed",
+        extra={
+            "event": "request.completed",
+            "request_id": request_id,
+            "http_method": request.method,
+            "http_path": request.url.path,
+            "status_code": response.status_code,
+            "duration_seconds": round(duration, 6),
+        },
+    )
+
+    return response
 
 @app.get("/healthz")
 def health_check() -> dict[str, str]:
@@ -45,19 +108,20 @@ def metrics() -> Response:
     response_model=ChatCompletionResponse,
 )
 def create_chat_completion(
-    request: ChatCompletionRequest,
+    payload: ChatCompletionRequest,
+    http_request: Request, #In order to obtain HTTP requests simultaneously
 ) -> ChatCompletionResponse:
     latest_user_message = next(
         (
             message.content
-            for message in reversed(request.messages)
+            for message in reversed(payload.messages)
             if message.role == "user"
         ),
         "No user message provided.",
     )
 
     running_requests = REQUESTS_RUNNING.labels(
-        model_name=request.model,
+        model_name=payload.model,
     )
 
     running_requests.inc()
@@ -66,14 +130,38 @@ def create_chat_completion(
         result = simulate_inference(latest_user_message)
 
         record_successful_request(
-            model_name=request.model,
+            model_name=payload.model,
             result=result,
+        )
+
+        logger.info(
+            "Inference completed",
+            extra={
+                "event": "inference.completed",
+                "request_id": http_request.state.request_id,
+                "model_name": payload.model,
+                "prompt_tokens": result.prompt_tokens,
+                "generation_tokens": result.generation_tokens,
+                "finish_reason": result.finish_reason,
+                "ttft_seconds": round(
+                    result.time_to_first_token_seconds,
+                    6,
+                ),
+                "tpot_seconds": round(
+                    result.time_per_output_token_seconds,
+                    6,
+                ),
+                "e2e_latency_seconds": round(
+                    result.e2e_latency_seconds,
+                    6,
+                ),
+            },
         )
 
         return ChatCompletionResponse(
             id=f"chatcmpl-{uuid4().hex}",
             object="chat.completion",
-            model=request.model,
+            model=payload.model,
             choices=[
                 ChatCompletionChoice(
                     index=0,
@@ -81,7 +169,7 @@ def create_chat_completion(
                         role="assistant",
                         content=result.response_text,
                     ),
-                    finish_reason="stop",
+                    finish_reason=result.finish_reason,
                 )
             ],
         )

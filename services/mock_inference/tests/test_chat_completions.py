@@ -31,7 +31,10 @@ def test_create_chat_completion_returns_mock_response() -> None:
         "role": "assistant",
         "content": "This is a simulated response to: Hello",
     }
-    assert body["choices"][0]["finish_reason"] == "stop"
+    assert body["choices"][0]["finish_reason"] in {
+        "stop",
+        "length",
+    }
 
 
 def test_create_chat_completion_rejects_empty_messages() -> None:
