@@ -20,13 +20,29 @@ from services.mock_inference.app.metrics import (
 from services.mock_inference.app.simulation import simulate_inference
 from services.mock_inference.app.logging_config import configure_logging
 
+from opentelemetry.instrumentation.fastapi import (
+    FastAPIInstrumentor,
+)
+
+from services.mock_inference.app.tracing import (
+    configure_tracing,
+    get_tracer,
+)
+
 configure_logging()
+configure_tracing()
 
 logger = logging.getLogger(__name__)
+tracer = get_tracer()
 
 app = FastAPI(
     title="Mock Inference Service",
     version="0.1.0",
+)
+
+FastAPIInstrumentor.instrument_app(
+    app,
+    excluded_urls="/metrics,/healthz",
 )
 
 @app.middleware("http")
@@ -127,12 +143,50 @@ def create_chat_completion(
     running_requests.inc()
 
     try:
-        result = simulate_inference(latest_user_message)
+        with tracer.start_as_current_span(
+            "mock_inference.generate",
+        ) as inference_span:
+            inference_span.set_attribute(
+                "gen_ai.request.model",
+                payload.model,
+            )
+            inference_span.set_attribute(
+                "gen_ai.operation.name",
+                "chat",
+            )
 
-        record_successful_request(
-            model_name=payload.model,
-            result=result,
-        )
+            result = simulate_inference(
+                latest_user_message,
+            )
+
+            inference_span.set_attribute(
+                "gen_ai.usage.input_tokens",
+                result.prompt_tokens,
+            )
+            inference_span.set_attribute(
+                "gen_ai.usage.output_tokens",
+                result.generation_tokens,
+            )
+            inference_span.set_attribute(
+                "mock.ttft_seconds",
+                result.time_to_first_token_seconds,
+            )
+            inference_span.set_attribute(
+                "mock.tpot_seconds",
+                result.time_per_output_token_seconds,
+            )
+            inference_span.set_attribute(
+                "gen_ai.response.finish_reasons",
+                result.finish_reason,
+            )
+
+        with tracer.start_as_current_span(
+            "mock_inference.record_metrics",
+        ):
+            record_successful_request(
+                model_name=payload.model,
+                result=result,
+            )
 
         logger.info(
             "Inference completed",

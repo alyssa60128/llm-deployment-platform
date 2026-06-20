@@ -121,6 +121,12 @@ Inference logs include:
 
 Grafana Alloy discovers the Docker container, reads its logs, and forwards them to Loki.
 
+### Traces
+
+* OpenTelemetry tracing
+* Tempo trace storage
+* Log-to-trace and trace-to-log correlation
+
 ## Local Development
 
 ### Requirements
