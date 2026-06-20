@@ -42,3 +42,33 @@ histogram_quantile(
 Application timestamps are emitted in UTC.
 
 Grafana can display them in browser local time.
+
+## Traces
+
+The mock inference service uses OpenTelemetry to instrument incoming FastAPI
+requests and custom inference operations.
+
+Trace flow:
+
+```text
+Mock inference
+→ OTLP
+→ Grafana Alloy
+→ Tempo
+→ Grafana
+```
+
+Find inference traces with:
+```text
+{ name = "mock_inference.generate" }
+```
+
+The `/metrics` and `/healthz` endpoints are excluded from tracing to reduce
+noise from frequent Prometheus scrapes and health checks.
+
+Application logs include both `trace_id` and `span_id`.
+
+Grafana supports:
+* navigating from a Loki log entry to its Tempo trace
+* opening a span and selecting Logs for this span to find related Loki logs
+

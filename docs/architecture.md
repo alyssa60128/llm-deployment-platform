@@ -58,6 +58,17 @@ Grafana Explore
 
 Request IDs remain JSON fields instead of Loki stream labels to avoid high label cardinality.
 
+## Tracing Flow
+
+```text
+Mock inference
+→ OpenTelemetry SDK
+→ OTLP gRPC
+→ Grafana Alloy
+→ Tempo
+→ Grafana
+```
+
 ## Delivery Flow
 
 ```text
