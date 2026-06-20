@@ -30,14 +30,8 @@ def get_metric_value(
 def test_chat_completion_updates_request_and_token_metrics() -> None:
     model_name = "metrics-test-model"
 
-    success_labels = (model_name, "stop")
     model_labels = (model_name,)
 
-    success_before = get_metric_value(
-        REQUEST_SUCCESS,
-        success_labels,
-        "_total",
-    )
     prompt_tokens_before = get_metric_value(
         PROMPT_TOKENS,
         model_labels,
@@ -46,6 +40,17 @@ def test_chat_completion_updates_request_and_token_metrics() -> None:
     generation_tokens_before = get_metric_value(
         GENERATION_TOKENS,
         model_labels,
+        "_total",
+    )
+
+    stop_before = get_metric_value(
+        REQUEST_SUCCESS,
+        (model_name, "stop"),
+        "_total",
+    )
+    length_before = get_metric_value(
+        REQUEST_SUCCESS,
+        (model_name, "length"),
         "_total",
     )
 
@@ -64,11 +69,6 @@ def test_chat_completion_updates_request_and_token_metrics() -> None:
 
     assert response.status_code == 200
 
-    success_after = get_metric_value(
-        REQUEST_SUCCESS,
-        success_labels,
-        "_total",
-    )
     prompt_tokens_after = get_metric_value(
         PROMPT_TOKENS,
         model_labels,
@@ -80,7 +80,26 @@ def test_chat_completion_updates_request_and_token_metrics() -> None:
         "_total",
     )
 
-    assert success_after - success_before == 1
+    stop_after = get_metric_value(
+        REQUEST_SUCCESS,
+        (model_name, "stop"),
+        "_total",
+    )
+    length_after = get_metric_value(
+        REQUEST_SUCCESS,
+        (model_name, "length"),
+        "_total",
+    )
+
+    success_delta = (
+        stop_after
+        - stop_before
+        + length_after
+        - length_before
+    )
+
+    assert success_delta == 1
+
     assert prompt_tokens_after > prompt_tokens_before
     assert generation_tokens_after > generation_tokens_before
 

@@ -16,7 +16,7 @@ class ChatCompletionRequest(BaseModel):
 class ChatCompletionChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Literal["stop"]
+    finish_reason: Literal["stop", "length"]
 
 
 class ChatCompletionResponse(BaseModel):

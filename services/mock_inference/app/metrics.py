@@ -79,7 +79,7 @@ def record_successful_request(
 ) -> None:
     REQUEST_SUCCESS.labels(
         model_name=model_name,
-        finished_reason="stop",
+        finished_reason=result.finish_reason,
     ).inc()
 
     PROMPT_TOKENS.labels(
