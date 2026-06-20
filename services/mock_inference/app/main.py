@@ -40,7 +40,10 @@ app = FastAPI(
     version="0.1.0",
 )
 
-FastAPIInstrumentor.instrument_app(app)
+FastAPIInstrumentor.instrument_app(
+    app,
+    excluded_urls="/metrics,/healthz",
+)
 
 @app.middleware("http")
 async def add_request_context(
