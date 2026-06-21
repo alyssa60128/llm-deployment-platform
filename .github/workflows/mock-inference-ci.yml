@@ -33,16 +33,23 @@ jobs:
           cache-dependency-path: |
             services/mock_inference/requirements.txt
             services/mock_inference/requirements-dev.txt
+            services/control_plane/requirements.txt
+            services/control_plane/requirements-dev.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install \
             -r services/mock_inference/requirements-dev.txt
+          python -m pip install \
+            -r services/control_plane/requirements-dev.txt
 
       - name: Run tests
         run: |
-          python -m pytest services/mock_inference/tests -v
+          python -m pytest \
+            services/mock_inference/tests \
+            services/control_plane/tests \
+            -v
 
   container:
     name: Build and publish mock inference container
