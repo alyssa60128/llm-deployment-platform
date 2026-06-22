@@ -1,52 +1,44 @@
-from services.control_plane.app.models import ModelCatalogItem
-
+from services.control_plane.app.models import (
+    ModelCatalogItem,
+    VllmDefaults,
+)
 
 MODEL_CATALOG: list[ModelCatalogItem] = [
     ModelCatalogItem(
         id="llama-3.2-1b",
-        display_name="Llama 3.2 1B",
-        provider="Meta",
-        source="meta-llama/Llama-3.2-1B",
+        hf_model_id="meta-llama/Llama-3.2-1B",
+        served_model_name="llama-3.2-1b",
         source_url="https://huggingface.co/meta-llama/Llama-3.2-1B",
-        backend="mock-vllm",
-        parameter_count_billions=1.0,
-        context_window=None,
-        quantization="none",
-        requires_gpu=False,
+        parameters_billion=1.0,
+        bytes_per_parameter=2.0,
         requires_hf_token=True,
-        recommended_for=(
-            "Baseline small-model deployment simulation and future "
-            "CPU/GPU compatibility testing."
-        ),
-        notes=(
-            "Meta Llama models may require accepting the license and "
-            "using a Hugging Face token before downloading the real weights. "
-            "In V1 this platform only simulates deployment."
+        vllm_defaults=VllmDefaults(
+            dtype="auto",
+            quantization=None,
+            max_model_len=8192,
+            gpu_memory_utilization=0.9,
+            tensor_parallel_size=1,
+            pipeline_parallel_size=1,
         ),
     ),
     ModelCatalogItem(
         id="llama-3.2-3b-instruct-awq",
-        display_name="Llama 3.2 3B Instruct AWQ",
-        provider="AMead10",
-        source="AMead10/Llama-3.2-3B-Instruct-AWQ",
+        hf_model_id="AMead10/Llama-3.2-3B-Instruct-AWQ",
+        served_model_name="llama-3.2-3b-instruct-awq",
         source_url=(
             "https://huggingface.co/AMead10/"
             "Llama-3.2-3B-Instruct-AWQ"
         ),
-        backend="mock-vllm",
-        parameter_count_billions=3.0,
-        context_window=None,
-        quantization="awq",
-        requires_gpu=True,
+        parameters_billion=3.0,
+        bytes_per_parameter=0.5,
         requires_hf_token=False,
-        recommended_for=(
-            "Future low-VRAM GPU experiment with quantized instruction "
-            "following model."
-        ),
-        notes=(
-            "AWQ quantization is included to make future real inference "
-            "experiments more feasible on limited GPU memory. V1 does not "
-            "download or run the model."
+        vllm_defaults=VllmDefaults(
+            dtype="auto",
+            quantization="awq",
+            max_model_len=8192,
+            gpu_memory_utilization=0.9,
+            tensor_parallel_size=1,
+            pipeline_parallel_size=1,
         ),
     ),
 ]

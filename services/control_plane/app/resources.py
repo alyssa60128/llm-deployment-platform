@@ -32,6 +32,8 @@ def _get_gpu_resources() -> GpuResources:
     ):
         return GpuResources(
             available=False,
+            total_memory_bytes=0,
+            largest_device_memory_bytes=0,
             devices=[],
         )
 
@@ -51,18 +53,35 @@ def _get_gpu_resources() -> GpuResources:
         if not re.fullmatch(r"\d+", memory_total_mib):
             continue
 
+        memory_total_bytes = (
+            int(memory_total_mib) * 1024 * 1024
+        )
+
         devices.append(
             GpuDevice(
                 id=gpu_id,
                 name=name,
-                memory_total_bytes=(
-                    int(memory_total_mib) * 1024 * 1024
-                ),
+                memory_total_bytes=memory_total_bytes,
             )
         )
 
+    total_memory_bytes = sum(
+        device.memory_total_bytes
+        for device in devices
+    )
+
+    largest_device_memory_bytes = max(
+        (
+            device.memory_total_bytes
+            for device in devices
+        ),
+        default=0,
+    )
+
     return GpuResources(
         available=bool(devices),
+        total_memory_bytes=total_memory_bytes,
+        largest_device_memory_bytes=largest_device_memory_bytes,
         devices=devices,
     )
 

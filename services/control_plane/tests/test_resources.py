@@ -22,9 +22,28 @@ def test_read_resources_returns_cpu_memory_and_gpu() -> None:
     )
 
     assert isinstance(payload["gpu"]["available"], bool)
+    assert isinstance(payload["gpu"]["total_memory_bytes"], int)
+    assert isinstance(
+        payload["gpu"]["largest_device_memory_bytes"],
+        int,
+    )
     assert isinstance(payload["gpu"]["devices"], list)
+
+    assert payload["gpu"]["total_memory_bytes"] >= 0
+    assert payload["gpu"]["largest_device_memory_bytes"] >= 0
+    assert (
+        payload["gpu"]["largest_device_memory_bytes"]
+        <= payload["gpu"]["total_memory_bytes"]
+    )
+
+    if not payload["gpu"]["available"]:
+        assert payload["gpu"]["total_memory_bytes"] == 0
+        assert payload["gpu"]["largest_device_memory_bytes"] == 0
+        assert payload["gpu"]["devices"] == []
 
     for device in payload["gpu"]["devices"]:
         assert "id" in device
         assert "name" in device
         assert "memory_total_bytes" in device
+        assert isinstance(device["memory_total_bytes"], int)
+        assert device["memory_total_bytes"] > 0

@@ -15,11 +15,13 @@ class MemoryResources(BaseModel):
 class GpuDevice(BaseModel):
     id: str
     name: str
-    memory_total_bytes: int | None = None
+    memory_total_bytes: int
 
 
 class GpuResources(BaseModel):
     available: bool
+    total_memory_bytes: int
+    largest_device_memory_bytes: int
     devices: list[GpuDevice]
 
 
@@ -41,17 +43,21 @@ QuantizationType = Literal[
 ]
 
 
+class VllmDefaults(BaseModel):
+    dtype: str = "auto"
+    quantization: str | None = None
+    max_model_len: int | None = None
+    gpu_memory_utilization: float = 0.9
+    tensor_parallel_size: int = 1
+    pipeline_parallel_size: int = 1
+
+
 class ModelCatalogItem(BaseModel):
     id: str
-    display_name: str
-    provider: str
-    source: str
+    hf_model_id: str
+    served_model_name: str
     source_url: HttpUrl
-    backend: ModelBackend
-    parameter_count_billions: float
-    context_window: int | None = None
-    quantization: QuantizationType
-    requires_gpu: bool
+    parameters_billion: float
+    bytes_per_parameter: float
     requires_hf_token: bool
-    recommended_for: str
-    notes: str
+    vllm_defaults: VllmDefaults
