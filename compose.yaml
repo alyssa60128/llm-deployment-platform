@@ -109,6 +109,23 @@ services:
     ports:
       - "3200:3200"
 
+  control-plane:
+    build:
+      context: .
+      dockerfile: services/control_plane/Dockerfile
+
+    container_name: control-plane
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      MOCK_INFERENCE_BASE_URL: http://mock-inference:8000
+      MOCK_INFERENCE_PUBLIC_URL: http://localhost:8000
+
+    depends_on:
+      - mock-inference
+
 volumes:
   prometheus-data:
   grafana-data:

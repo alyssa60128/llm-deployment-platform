@@ -14,9 +14,13 @@ This project is designed to demonstrate and practice:
 * Docker image creation
 * GitHub Actions CI
 * Container publishing to GitHub Container Registry
+* A control-plane API for resources, model catalog, deployment planning, and deployment-scoped inference requests
+* A shared mock inference runtime that simulates a vLLM-compatible OpenAI-style API
 * Prometheus metrics compatible with selected vLLM metric names
 * Structured JSON logging
+* OpenTelemetry tracing
 * Centralized log collection with Grafana Alloy and Loki
+* Trace storage with Tempo
 * Visualization and exploration with Grafana
 
 ## Architecture
@@ -24,167 +28,116 @@ This project is designed to demonstrate and practice:
 ```text
 Client
   |
+  | Create deployment / send deployment-scoped chat request
   v
-Mock Inference API
+Control Plane API
+  |
+  | Validate deployment
+  | Inject served model name
+  | Proxy chat request
+  v
+Shared Mock Inference Runtime
   |-- Prometheus metrics --> Prometheus --> Grafana
   |
-  `-- JSON stdout logs --> Grafana Alloy --> Loki --> Grafana
+  |-- JSON stdout logs --> Grafana Alloy --> Loki --> Grafana
+  |
+  `-- OTLP traces --> Grafana Alloy --> Tempo --> Grafana
 
 GitHub Pull Request
   |
   |-- pytest
-  `-- Docker image build
+  |-- Docker Compose validation
+  `-- Docker image build validation
 
 Merge to main
   |
-  `-- Build and publish image to GHCR
+  `-- Build and publish mock-inference image to GHCR
 ```
 
 ## Services
 
-| Service        | Purpose                                   | Local URL              |
-| -------------- | ----------------------------------------- | ---------------------- |
-| Mock Inference | FastAPI-based simulated LLM inference API | http://localhost:8000  |
-| Prometheus     | Metrics collection and querying           | http://localhost:9090  |
-| Grafana        | Metrics and log exploration               | http://localhost:3000  |
-| Loki           | Centralized log storage                   | http://localhost:3100  |
-| Grafana Alloy  | Docker log discovery and forwarding       | http://localhost:12345 |
+| Service        | Purpose                                                                                             | Local URL              |
+| -------------- | --------------------------------------------------------------------------------------------------- | ---------------------- |
+| Control Plane  | FastAPI API for resources, model catalog, deployment planning, and deployment-scoped proxy requests | http://localhost:8080  |
+| Mock Inference | FastAPI-based simulated vLLM-compatible inference runtime                                           | http://localhost:8000  |
+| Prometheus     | Metrics collection and querying                                                                     | http://localhost:9090  |
+| Grafana        | Metrics, logs, and traces exploration                                                               | http://localhost:3000  |
+| Loki           | Centralized log storage                                                                             | http://localhost:3100  |
+| Tempo          | Trace storage                                                                                       | http://localhost:3200  |
+| Grafana Alloy  | Docker log collection and OTLP trace forwarding                                                     | http://localhost:12345 |
 
 ## API Endpoints
 
-### Health check
+### Control Plane
 
 ```http
 GET /healthz
+GET /api/v1/resources
+GET /api/v1/models
+POST /api/v1/deployments
+GET /api/v1/deployments
+GET /api/v1/deployments/{deployment_id}
+DELETE /api/v1/deployments/{deployment_id}
+POST /api/v1/deployments/{deployment_id}/chat/completions
 ```
 
-### Mock chat completion
+### Mock Inference Runtime
 
 ```http
+GET /healthz
 POST /v1/chat/completions
-```
-
-Example request:
-
-```json
-{
-  "model": "model-a",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Explain container observability"
-    }
-  ]
-}
-```
-
-### Prometheus metrics
-
-```http
 GET /metrics
 ```
 
-## Observability
+The recommended MVP path is to call chat completions through the control plane:
 
-### Metrics
+```text
+POST /api/v1/deployments/{deployment_id}/chat/completions
+```
 
-The mock inference service exports selected vLLM-compatible Prometheus metrics, including:
+The direct mock inference endpoint remains available for local testing:
 
-* Running requests
-* Successful requests
-* Prompt tokens
-* Generation tokens
-* Time to first token
-* Time per output token
-* End-to-end request latency
+```text
+POST /v1/chat/completions
+```
 
-The generated values are synthetic and are intended to exercise the monitoring pipeline.
+## MVP Deployment Flow
 
-### Logs
+Version 1 uses a shared mock inference runtime.
 
-The application writes one-line JSON logs to stdout.
+The control plane creates deployment records and proxies deployment-scoped chat requests to the shared `mock-inference` service. The request body does not accept a `model` field; the control plane injects the deployed model name based on the deployment record.
 
-Request logs include:
-
-* Request ID
-* HTTP method and path
-* Status code
-* Request duration
-
-Inference logs include:
-
-* Model name
-* Prompt and generation token counts
-* TTFT and TPOT
-* End-to-end latency
-* Finish reason
-
-Grafana Alloy discovers the Docker container, reads its logs, and forwards them to Loki.
-
-### Traces
-
-* OpenTelemetry tracing
-* Tempo trace storage
-* Log-to-trace and trace-to-log correlation
+```text
+Client
+→ control-plane
+→ deployment record
+→ shared mock-inference runtime
+→ metrics / logs / traces
+```
 
 ## Local Development
 
-### Requirements
+See [`docs/local-development.md`](docs/local-development.md).
 
-* Docker Desktop with WSL 2 integration
-* Docker Compose
-* Python 3.12
-* Git
+## Observability
 
-### Run with Docker Compose
+See [`docs/observability.md`](docs/observability.md).
 
-```bash
-docker compose up --build -d
-```
+## Current Limitations
 
-Check service status:
+* No real GPU inference
+* No real Hugging Face model download
+* No real vLLM runtime
+* No Kubernetes deployment
+* No AWS infrastructure
+* Control-plane deployment state is stored in memory
+* Version 1 uses one shared mock inference runtime instead of one runtime container per deployment
+* Grafana dashboard JSON is currently maintained privately and imported manually
+* Token counts, latency, and selected runtime metrics are simulated
 
-```bash
-docker compose ps
-```
+## Planned Work
 
-Stop services without deleting stored data:
-
-```bash
-docker compose down
-```
-
-Do not use `docker compose down -v` if you want to preserve local Grafana and Prometheus data.
-
-### Send a test request
-
-```bash
-curl -X POST \
-  http://127.0.0.1:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "X-Request-ID: readme-test-001" \
-  -d '{
-    "model": "model-a",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hello from the README"
-      }
-    ]
-  }'
-```
-
-### Run tests
-
-```bash
-python -m pytest services/mock_inference/tests -v
-```
-
-### Validate Docker Compose
-
-```bash
-docker compose config --quiet
-```
+See [`docs/roadmap.md`](docs/roadmap.md).
 
 ## CI/CD
 
@@ -198,34 +151,3 @@ Pull requests targeting `main` automatically run:
 After changes are merged into `main`, GitHub Actions also publishes the container image to GitHub Container Registry.
 
 The GHCR package is currently private while the first project version is under development.
-
-## Current Limitations
-
-* No real GPU inference
-* No real Hugging Face model download
-* No vLLM runtime
-* No Kubernetes deployment
-* No AWS infrastructure
-* No distributed tracing yet
-* Grafana dashboard JSON is currently maintained privately and imported manually
-* Token counts and inference latency are simulated
-
-## Planned Work
-
-### Version 1
-
-* OpenTelemetry traces
-* Tempo integration
-* FastAPI control plane
-* Server resource inspection
-* Static model catalog
-* Mock deployment lifecycle
-* Improved integration tests and documentation
-
-### Version 2
-
-* Kubernetes and Helm
-* Terraform
-* AWS deployment
-* Real GPU-backed vLLM runtime
-* Improved and publishable Grafana dashboards

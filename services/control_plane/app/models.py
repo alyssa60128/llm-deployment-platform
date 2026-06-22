@@ -104,5 +104,22 @@ class Deployment(BaseModel):
     runtime: DeploymentRuntime
     status: DeploymentStatus
     plan: DeploymentPlan
+    runtime_internal_url: str
+    runtime_public_url: str
     created_at: datetime
     updated_at: datetime
+
+class ChatMessage(BaseModel):
+    role: Literal[
+        "system",
+        "user",
+        "assistant",
+    ]
+    content: str
+
+
+class DeploymentChatCompletionRequest(BaseModel):
+    messages: list[ChatMessage] = Field(
+        ...,
+        min_length=1,
+    )

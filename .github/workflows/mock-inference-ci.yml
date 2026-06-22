@@ -1,4 +1,4 @@
-name: Mock Inference CI
+name: Platform CI
 
 on:
   pull_request:
@@ -18,7 +18,7 @@ env:
 
 jobs:
   test:
-    name: Run mock inference tests
+    name: Run mock inference and control plane tests
     runs-on: ubuntu-latest
 
     steps:
@@ -52,7 +52,7 @@ jobs:
             -v
 
   container:
-    name: Build and publish mock inference container
+    name: Build and publish mock inference and control plane container
     runs-on: ubuntu-latest
     needs:
       - test
@@ -79,8 +79,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate container metadata
-        id: metadata
+      - name: Generate mock inference container metadata
+        id: mock_inference_metadata
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -88,13 +88,23 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and optionally publish container image
+      - name: Build and optionally publish mock inference image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: services/mock_inference/Dockerfile
           push: ${{ github.event_name == 'push' }}
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ steps.mock_inference_metadata.outputs.tags }}
+          labels: ${{ steps.mock_inference_metadata.outputs.labels }}
+          cache-from: type=gha,scope=mock-inference
+          cache-to: type=gha,mode=max,scope=mock-inference
+
+      - name: Build control plane image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/control_plane/Dockerfile
+          push: false
+          tags: control-plane:ci
+          cache-from: type=gha,scope=control-plane
+          cache-to: type=gha,mode=max,scope=control-plane
