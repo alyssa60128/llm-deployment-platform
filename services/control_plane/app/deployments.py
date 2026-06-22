@@ -15,6 +15,21 @@ from services.control_plane.app.models import (
 )
 from services.control_plane.app.resources import get_resource_summary
 
+import httpx
+import os
+
+MOCK_INFERENCE_INTERNAL_URL = os.getenv(
+    "MOCK_INFERENCE_BASE_URL",
+    "http://mock-inference:8000",
+)
+
+MOCK_INFERENCE_PUBLIC_URL = os.getenv(
+    "MOCK_INFERENCE_PUBLIC_URL",
+    "http://localhost:8000",
+)
+
+def get_runtime_base_url() -> str:
+    return MOCK_INFERENCE_INTERNAL_URL
 
 _DEPLOYMENTS: dict[str, Deployment] = {}
 
@@ -213,6 +228,8 @@ def create_deployment(
         runtime=request.runtime,
         status=DeploymentStatus.RUNNING,
         plan=plan,
+        runtime_internal_url=MOCK_INFERENCE_INTERNAL_URL,
+        runtime_public_url=MOCK_INFERENCE_PUBLIC_URL,
         created_at=now,
         updated_at=now,
     )

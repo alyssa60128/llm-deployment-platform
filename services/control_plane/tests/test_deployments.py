@@ -6,6 +6,9 @@ from services.control_plane.app.deployments import (
 )
 from services.control_plane.app.main import app
 
+from typing import Any
+import httpx
+
 client = TestClient(app)
 
 
@@ -142,3 +145,136 @@ def test_delete_deployment_marks_it_deleted() -> None:
 
     assert get_response.status_code == 200
     assert get_response.json()["status"] == "DELETED"
+
+def test_proxy_chat_completion_for_running_deployment(
+    monkeypatch,
+) -> None:
+    create_response = client.post(
+        "/api/v1/deployments",
+        json={
+            "model_id": "llama-3.2-1b",
+        },
+    )
+
+    deployment_id = create_response.json()["id"]
+
+    captured_request: dict[str, Any] = {}
+
+    def fake_post(
+        url: str,
+        json: dict[str, Any],
+        headers: dict[str, str],
+        timeout: int,
+    ) -> httpx.Response:
+        captured_request["url"] = url
+        captured_request["json"] = json
+        captured_request["headers"] = headers
+        captured_request["timeout"] = timeout
+
+        return httpx.Response(
+            status_code=200,
+            json={
+                "id": "chatcmpl-test",
+                "object": "chat.completion",
+                "model": json["model"],
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "proxied response",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        fake_post,
+    )
+
+    response = client.post(
+        f"/api/v1/deployments/{deployment_id}/chat/completions",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "hello",
+                }
+            ],
+        }
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["model"] == "llama-3.2-1b"
+    assert payload["choices"][0]["message"]["content"] == (
+        "proxied response"
+    )
+
+    assert captured_request["url"].endswith(
+        "/v1/chat/completions"
+    )
+    assert captured_request["json"]["model"] == "llama-3.2-1b"
+    assert captured_request["headers"] == {
+        "X-Deployment-ID": deployment_id,
+    }
+
+def test_proxy_chat_completion_rejects_deleted_deployment() -> None:
+    create_response = client.post(
+        "/api/v1/deployments",
+        json={
+            "model_id": "llama-3.2-1b",
+        },
+    )
+
+    deployment_id = create_response.json()["id"]
+
+    delete_response = client.delete(
+        f"/api/v1/deployments/{deployment_id}"
+    )
+
+    assert delete_response.status_code == 200
+
+    response = client.post(
+        f"/api/v1/deployments/{deployment_id}/chat/completions",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "hello",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 409
+
+def test_proxy_chat_completion_rejects_invalid_role() -> None:
+    create_response = client.post(
+        "/api/v1/deployments",
+        json={
+            "model_id": "llama-3.2-1b",
+        },
+    )
+
+    deployment_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/deployments/{deployment_id}/chat/completions",
+        json={
+            "messages": [
+                {
+                    "role": "invalid-role",
+                    "content": "hello",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422

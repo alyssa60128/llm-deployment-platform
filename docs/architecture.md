@@ -87,3 +87,21 @@ Merge to main
 ```
 
 Pull requests do not publish images. Publishing requires package write permission and only occurs after changes are accepted into the main branch.
+
+## MVP Runtime Model
+
+Version 1 does not create one runtime container per deployment.
+
+Instead, all mock deployments share one `mock-inference` runtime service.
+The control plane stores deployment records and proxies deployment-scoped chat
+requests to the shared runtime.
+
+```text
+POST /api/v1/deployments
+  → create deployment record
+
+POST /api/v1/deployments/{id}/chat/completions
+  → validate deployment
+  → inject served model name
+  → proxy to mock-inference
+```

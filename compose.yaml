@@ -121,6 +121,7 @@ services:
 
     environment:
       MOCK_INFERENCE_BASE_URL: http://mock-inference:8000
+      MOCK_INFERENCE_PUBLIC_URL: http://localhost:8000
 
     depends_on:
       - mock-inference

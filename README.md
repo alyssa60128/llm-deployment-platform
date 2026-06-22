@@ -210,6 +210,22 @@ The GHCR package is currently private while the first project version is under d
 * Grafana dashboard JSON is currently maintained privately and imported manually
 * Token counts and inference latency are simulated
 
+## MVP Deployment Flow
+
+Version 1 uses a shared mock inference runtime.
+
+The control plane creates deployment records and proxies deployment-scoped
+chat requests to the shared `mock-inference` service.
+V2 may create one runtime container per deployment.
+
+```text
+Client
+→ control-plane
+→ deployment record
+→ shared mock-inference runtime
+→ metrics / logs / traces
+```
+
 ## Planned Work
 
 ### Version 1
