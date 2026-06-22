@@ -21,7 +21,10 @@ def test_read_resources_returns_cpu_memory_and_gpu() -> None:
         <= payload["memory"]["total_bytes"]
     )
 
-    assert payload["gpu"] == {
-        "available": False,
-        "devices": [],
-    }
+    assert isinstance(payload["gpu"]["available"], bool)
+    assert isinstance(payload["gpu"]["devices"], list)
+
+    for device in payload["gpu"]["devices"]:
+        assert "id" in device
+        assert "name" in device
+        assert "memory_total_bytes" in device

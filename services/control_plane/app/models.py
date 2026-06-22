@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, HttpUrl
 
 
 class CpuResources(BaseModel):
@@ -25,3 +27,31 @@ class ResourceSummary(BaseModel):
     cpu: CpuResources
     memory: MemoryResources
     gpu: GpuResources
+
+
+ModelBackend = Literal[
+    "mock-vllm",
+    "vllm",
+]
+
+
+QuantizationType = Literal[
+    "none",
+    "awq",
+]
+
+
+class ModelCatalogItem(BaseModel):
+    id: str
+    display_name: str
+    provider: str
+    source: str
+    source_url: HttpUrl
+    backend: ModelBackend
+    parameter_count_billions: float
+    context_window: int | None = None
+    quantization: QuantizationType
+    requires_gpu: bool
+    requires_hf_token: bool
+    recommended_for: str
+    notes: str
