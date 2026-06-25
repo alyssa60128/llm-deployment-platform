@@ -198,6 +198,9 @@ def test_proxy_chat_completion_for_running_deployment(
 
     response = client.post(
         f"/api/v1/deployments/{deployment_id}/chat/completions",
+        headers={
+            "X-Request-ID": "test-request-001",
+        },
         json={
             "messages": [
                 {
@@ -205,7 +208,7 @@ def test_proxy_chat_completion_for_running_deployment(
                     "content": "hello",
                 }
             ],
-        }
+        },
     )
 
     assert response.status_code == 200
