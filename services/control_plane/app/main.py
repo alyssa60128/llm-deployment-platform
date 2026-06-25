@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
 
 from services.control_plane.app.resources import get_resource_summary
 from services.control_plane.app.model_catalog import list_models
@@ -117,6 +117,7 @@ def delete_model_deployment(
 def proxy_chat_completion(
     deployment_id: str,
     payload: DeploymentChatCompletionRequest,
+    request: Request,
 ) -> dict:
     deployment = get_deployment(deployment_id)
 
@@ -143,13 +144,20 @@ def proxy_chat_completion(
         ],
     }
 
+    request_id = request.headers.get("X-Request-ID")
+
+    headers = {
+        "X-Deployment-ID": deployment.id,
+    }
+
+    if request_id is not None:
+        headers["X-Request-ID"] = request_id
+
     try:
         response = httpx.post(
             f"{get_runtime_base_url()}/v1/chat/completions",
             json=proxied_payload,
-            headers={
-                "X-Deployment-ID": deployment.id,
-            },
+            headers=headers,
             timeout=10,
         )
     except httpx.RequestError as exc:
