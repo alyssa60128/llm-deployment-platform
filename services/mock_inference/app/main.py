@@ -29,6 +29,11 @@ from services.mock_inference.app.tracing import (
     get_tracer,
 )
 
+NOISY_PATHS = {
+    "/metrics",
+    "/healthz",
+}
+
 configure_logging()
 configure_tracing()
 
@@ -50,6 +55,8 @@ async def add_request_context(
     request: Request,
     call_next,
 ):
+    should_log_request = request.url.path not in NOISY_PATHS
+
     request_id = request.headers.get(
         "X-Request-ID",
         f"req-{uuid4().hex}",
@@ -58,15 +65,16 @@ async def add_request_context(
     request.state.request_id = request_id
     started_at = perf_counter()
 
-    logger.info(
-        "HTTP request started",
-        extra={
-            "event": "request.started",
-            "request_id": request_id,
-            "http_method": request.method,
-            "http_path": request.url.path,
-        },
-    )
+    if should_log_request:
+        logger.info(
+            "HTTP request started",
+            extra={
+                "event": "request.started",
+                "request_id": request_id,
+                "http_method": request.method,
+                "http_path": request.url.path,
+            },
+        )
 
     try:
         response = await call_next(request)
@@ -88,18 +96,18 @@ async def add_request_context(
     duration = perf_counter() - started_at
 
     response.headers["X-Request-ID"] = request_id
-
-    logger.info(
-        "HTTP request completed",
-        extra={
-            "event": "request.completed",
-            "request_id": request_id,
-            "http_method": request.method,
-            "http_path": request.url.path,
-            "status_code": response.status_code,
-            "duration_seconds": round(duration, 6),
-        },
-    )
+    if should_log_request:
+        logger.info(
+            "HTTP request completed",
+            extra={
+                "event": "request.completed",
+                "request_id": request_id,
+                "http_method": request.method,
+                "http_path": request.url.path,
+                "status_code": response.status_code,
+                "duration_seconds": round(duration, 6),
+            },
+        )
 
     return response
 
